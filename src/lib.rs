@@ -15,35 +15,56 @@ pub mod otp {
     }
 
     #[derive(Debug)]
+    pub enum Secret {
+        Raw(Vec<u8>),
+        Encoded(String),
+    }
+
+    impl Secret {
+        fn as_base32(&self) -> String {
+            match self {
+                Self::Raw(bytes) => {
+                    base32::encode(base32::Alphabet::RFC4648 { padding: false }, bytes)
+                }
+                Self::Encoded(string) => string.clone(),
+            }
+        }
+    }
+
+    #[derive(Debug)]
     pub struct Totp {
-        secret: String,
-        issuer: Option<String>,
-        account_name: Option<String>,
-        algorithm: Option<Algorithm>,
+        secret: Secret,
+        issuer: String,
+        account_name: String,
+        algorithm: Algorithm,
         digits: Option<u32>,
         period: Option<u64>,
     }
 
     impl Totp {
-        pub fn new(secret: String) -> Self {
+        pub fn new(
+            secret: Secret,
+            issuer: String,
+            account_name: String,
+            algorithm: Algorithm,
+        ) -> Self {
             Self {
-                secret: secret,
-                issuer: None,
-                account_name: None,
-                algorithm: None,
+                secret,
+                issuer,
+                account_name,
+                algorithm,
                 digits: None,
                 period: None,
             }
         }
 
-        fn get_timesteps(&self) -> u64 {
+        fn get_timesteps(&self) -> Result<u64, std::time::SystemTimeError> {
             let period = self.period.unwrap_or(30);
             let unix_time_secs = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .duration_since(SystemTime::UNIX_EPOCH)?
                 .as_secs();
 
-            unix_time_secs / period
+            Ok(unix_time_secs / period)
         }
 
         pub fn get(&self) -> String {
